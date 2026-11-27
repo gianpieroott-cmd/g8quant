@@ -9,6 +9,10 @@ from scipy.stats import poisson
 
 API_KEY = os.environ.get("ODDS_API_KEY", "").strip()
 ROME_TZ = ZoneInfo("Europe/Rome")
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json"
+}
 
 def stima_lambda_da_quote(q1, qx, q2, qo25, qu25):
     p1, px, p2 = 1 / q1, 1 / qx, 1 / q2
@@ -29,17 +33,18 @@ def stima_lambda_da_quote(q1, qx, q2, qo25, qu25):
         return (m_p1 - p1)**2 + (m_px - px)**2 + (m_po - po)**2
 
     res = minimize(loss, [1.4, 1.2], method="Nelder-Mead")
-    la = max(0.3, round(float(res.x), 2))
-    lb = max(0.3, round(float(res.x), 2))
+    la_val, lb_val = res.x
+    la = max(0.3, round(float(la_val), 2))
+    lb = max(0.3, round(float(lb_val), 2))
     return la, lb
 
 def fetch_palinsesto():
     if not API_KEY:
         raise ValueError("Manca la variabile d'ambiente ODDS_API_KEY")
 
-    # 1. Recupera tutti i campionati di calcio attivi oggi
     sports_url = "https://the-odds-api.com"
-    s_resp = requests.get(sports_url, params={"apiKey": API_KEY})
+    s_resp = requests.get(sports_url, params={"apiKey": API_KEY}, headers=HEADERS, timeout=15)
+    print(f"Status: {s_resp.status_code}, Lunghezza risposta: {len(s_resp.text)}")
     if s_resp.status_code != 200 or not s_resp.text.strip():
         raise Exception(f"Errore lista sport ({s_resp.status_code}): {s_resp.text[:200]}")
 
@@ -50,7 +55,6 @@ def fetch_palinsesto():
     oggi_italia = datetime.now(ROME_TZ).date()
     palinsesto_pulito = []
 
-    # 2. Scarica le partite di ogni campionato attivo
     for sport_key in soccer_keys:
         odds_url = f"https://the-odds-api.com{sport_key}/odds/"
         params = {
@@ -59,7 +63,7 @@ def fetch_palinsesto():
             "markets": "h2h,totals",
             "oddsFormat": "decimal"
         }
-        resp = requests.get(odds_url, params=params)
+        resp = requests.get(odds_url, params=params, headers=HEADERS, timeout=15)
         if resp.status_code != 200 or not resp.text.strip():
             continue
 
