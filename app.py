@@ -3,8 +3,10 @@ import numpy as np
 from scipy.stats import poisson
 from datetime import datetime, timedelta
 
+import os
 from PIL import Image
-st.set_page_config(page_title="G8 Quant Stadium Pro", page_icon=Image.open("icona.png"), layout="wide")
+imgs = [f for f in os.listdir(".") if f.lower().endswith((".png", ".jpg", ".jpeg"))]
+st.set_page_config(page_title="G8 Quant Stadium Pro", page_icon=Image.open(imgs[0]) if imgs else "⚽", layout="wide")
 
 
 st.markdown("""
