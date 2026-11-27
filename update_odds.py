@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import requests
 import numpy as np
@@ -7,7 +8,8 @@ from zoneinfo import ZoneInfo
 from scipy.optimize import minimize
 from scipy.stats import poisson
 
-API_KEY = os.environ.get("ODDS_API_KEY", "").strip()
+RAW_KEY = os.environ.get("ODDS_API_KEY", "")
+API_KEY = re.sub(r'[^a-zA-Z0-9]', '', RAW_KEY)
 ROME_TZ = ZoneInfo("Europe/Rome")
 
 def stima_lambda_da_quote(q1, qx, q2, qo25, qu25):
@@ -36,9 +38,9 @@ def stima_lambda_da_quote(q1, qx, q2, qo25, qu25):
 
 def fetch_palinsesto():
     if not API_KEY:
-        raise ValueError("ERRORE: Il segreto ODDS_API_KEY su GitHub è vuoto o ha un nome diverso!")
+        raise ValueError("ERRORE: Il segreto ODDS_API_KEY su GitHub è vuoto!")
 
-    print(f"Chiave API rilevata (lunghezza: {len(API_KEY)} caratteri)")
+    print(f"Chiave API pulita (lunghezza: {len(API_KEY)} caratteri)")
 
     sports_url = f"https://the-odds-api.com{API_KEY}"
     s_resp = requests.get(sports_url, timeout=15)
@@ -135,4 +137,4 @@ def fetch_palinsesto():
 
 if __name__ == "__main__":
     fetch_palinsesto()
-    
+        
