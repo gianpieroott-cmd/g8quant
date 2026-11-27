@@ -3,7 +3,8 @@ import numpy as np
 from scipy.stats import poisson
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="G8 Quant Stadium Pro", page_icon="⚽", layout="wide")
+from PIL import Image
+st.set_page_config(page_title="G8 Quant Stadium Pro", page_icon=Image.open("icona.png"), layout="wide")
 
 
 st.markdown("""
