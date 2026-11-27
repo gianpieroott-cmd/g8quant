@@ -11,7 +11,7 @@ API_KEY = os.environ.get("ODDS_API_KEY", "").strip()
 ROME_TZ = ZoneInfo("Europe/Rome")
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json"
+    "Accept-Encoding": "identity"
 }
 
 def stima_lambda_da_quote(q1, qx, q2, qo25, qu25):
@@ -44,11 +44,10 @@ def fetch_palinsesto():
 
     sports_url = "https://the-odds-api.com"
     s_resp = requests.get(sports_url, params={"apiKey": API_KEY}, headers=HEADERS, timeout=15)
-    print(f"Status: {s_resp.status_code}, Lunghezza risposta: {len(s_resp.text)}")
-    if s_resp.status_code != 200 or not s_resp.text.strip():
-        raise Exception(f"Errore lista sport ({s_resp.status_code}): {s_resp.text[:200]}")
+    if s_resp.status_code != 200:
+        raise Exception(f"Errore lista sport ({s_resp.status_code})")
 
-    sports = s_resp.json()
+    sports = json.loads(s_resp.text)
     soccer_keys = [s["key"] for s in sports if s.get("group") == "Soccer" and s.get("active")]
     print(f"Trovati {len(soccer_keys)} campionati di calcio attivi.")
 
@@ -68,7 +67,7 @@ def fetch_palinsesto():
             continue
 
         try:
-            raw_matches = resp.json()
+            raw_matches = json.loads(resp.text)
         except Exception:
             continue
 
