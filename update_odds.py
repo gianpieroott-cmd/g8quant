@@ -9,10 +9,6 @@ from scipy.stats import poisson
 
 API_KEY = os.environ.get("ODDS_API_KEY", "").strip()
 ROME_TZ = ZoneInfo("Europe/Rome")
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept-Encoding": "identity"
-}
 
 def stima_lambda_da_quote(q1, qx, q2, qo25, qu25):
     p1, px, p2 = 1 / q1, 1 / qx, 1 / q2
@@ -40,12 +36,15 @@ def stima_lambda_da_quote(q1, qx, q2, qo25, qu25):
 
 def fetch_palinsesto():
     if not API_KEY:
-        raise ValueError("Manca la variabile d'ambiente ODDS_API_KEY")
+        raise ValueError("ERRORE: Il segreto ODDS_API_KEY su GitHub è vuoto o ha un nome diverso!")
 
-    sports_url = "https://the-odds-api.com"
-    s_resp = requests.get(sports_url, params={"apiKey": API_KEY}, headers=HEADERS, timeout=15)
-    if s_resp.status_code != 200:
-        raise Exception(f"Errore lista sport ({s_resp.status_code})")
+    print(f"Chiave API rilevata (lunghezza: {len(API_KEY)} caratteri)")
+
+    sports_url = f"https://the-odds-api.com{API_KEY}"
+    s_resp = requests.get(sports_url, timeout=15)
+    
+    if s_resp.status_code != 200 or not s_resp.text.strip().startswith("["):
+        raise Exception(f"Risposta inattesa ({s_resp.status_code}): {repr(s_resp.text[:200])}")
 
     sports = json.loads(s_resp.text)
     soccer_keys = [s["key"] for s in sports if s.get("group") == "Soccer" and s.get("active")]
@@ -55,21 +54,12 @@ def fetch_palinsesto():
     palinsesto_pulito = []
 
     for sport_key in soccer_keys:
-        odds_url = f"https://the-odds-api.com{sport_key}/odds/"
-        params = {
-            "apiKey": API_KEY,
-            "regions": "eu",
-            "markets": "h2h,totals",
-            "oddsFormat": "decimal"
-        }
-        resp = requests.get(odds_url, params=params, headers=HEADERS, timeout=15)
-        if resp.status_code != 200 or not resp.text.strip():
+        odds_url = f"https://the-odds-api.com{sport_key}/odds/?apiKey={API_KEY}&regions=eu&markets=h2h,totals&oddsFormat=decimal"
+        resp = requests.get(odds_url, timeout=15)
+        if resp.status_code != 200 or not resp.text.strip().startswith("["):
             continue
 
-        try:
-            raw_matches = json.loads(resp.text)
-        except Exception:
-            continue
+        raw_matches = json.loads(resp.text)
 
         for match in raw_matches:
             dt_utc = datetime.fromisoformat(match["commence_time"].replace("Z", "+00:00"))
@@ -145,4 +135,4 @@ def fetch_palinsesto():
 
 if __name__ == "__main__":
     fetch_palinsesto()
-        
+    
