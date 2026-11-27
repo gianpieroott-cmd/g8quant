@@ -1,0 +1,38 @@
+name: Aggiornamento Giornaliero Palinsesto G8
+
+on:
+  schedule:
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-odds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Installa librerie
+        run: |
+          pip install requests numpy scipy
+
+      - name: Scarica palinsesto e calcola Poisson
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          python update_odds.py
+
+      - name: Commit e Push dati aggiornati
+        run: |
+          git config --global user.name "G8 Quant Bot"
+          git config --global user.email "bot@g8quant.app"
+          git add data/palinsesto.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Aggiornamento palinsesto giornaliero" && git push)
