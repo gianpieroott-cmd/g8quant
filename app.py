@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="G8 Quant Stadium Pro", page_icon="⚽", layout="wide")
 
+
 st.markdown("""
 <style>
 .stApp { background: radial-gradient(circle at top, #113829 0%, #09151e 50%, #060b13 100%); color: #fff; }
