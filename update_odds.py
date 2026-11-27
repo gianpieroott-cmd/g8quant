@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from scipy.optimize import minimize
 from scipy.stats import poisson
 
-API_KEY = os.environ.get("ODDS_API_KEY")
+API_KEY = os.environ.get("ODDS_API_KEY", "").strip()
 ROME_TZ = ZoneInfo("Europe/Rome")
 
 def stima_lambda_da_quote(q1, qx, q2, qo25, qu25):
@@ -37,83 +37,94 @@ def fetch_palinsesto():
     if not API_KEY:
         raise ValueError("Manca la variabile d'ambiente ODDS_API_KEY")
 
-    url = "https://the-odds-api.com"
-    params = {
-        "apiKey": API_KEY.strip(),
-        "regions": "eu",
-        "markets": "h2h,totals",
-        "oddsFormat": "decimal"
-    }
+    # 1. Recupera tutti i campionati di calcio attivi oggi
+    sports_url = "https://the-odds-api.com"
+    s_resp = requests.get(sports_url, params={"apiKey": API_KEY})
+    if s_resp.status_code != 200 or not s_resp.text.strip():
+        raise Exception(f"Errore lista sport ({s_resp.status_code}): {s_resp.text[:200]}")
 
-    resp = requests.get(url, params=params)
-    print("Status Code API:", resp.status_code)
-    if resp.status_code != 200 or not resp.text.strip():
-        raise Exception(f"Risposta API ({resp.status_code}): {resp.text[:300]}")
+    sports = s_resp.json()
+    soccer_keys = [s["key"] for s in sports if s.get("group") == "Soccer" and s.get("active")]
+    print(f"Trovati {len(soccer_keys)} campionati di calcio attivi.")
 
-    raw_matches = resp.json()
     oggi_italia = datetime.now(ROME_TZ).date()
     palinsesto_pulito = []
 
-    for match in raw_matches:
-        if not match.get("sport_key", "").startswith("soccer_"):
+    # 2. Scarica le partite di ogni campionato attivo
+    for sport_key in soccer_keys:
+        odds_url = f"https://the-odds-api.com{sport_key}/odds/"
+        params = {
+            "apiKey": API_KEY,
+            "regions": "eu",
+            "markets": "h2h,totals",
+            "oddsFormat": "decimal"
+        }
+        resp = requests.get(odds_url, params=params)
+        if resp.status_code != 200 or not resp.text.strip():
             continue
 
-        dt_utc = datetime.fromisoformat(match["commence_time"].replace("Z", "+00:00"))
-        dt_it = dt_utc.astimezone(ROME_TZ)
-
-        if dt_it.date() != oggi_italia:
+        try:
+            raw_matches = resp.json()
+        except Exception:
             continue
 
-        home = match["home_team"]
-        away = match["away_team"]
-        lega = match.get("sport_title", "Calcio")
+        for match in raw_matches:
+            dt_utc = datetime.fromisoformat(match["commence_time"].replace("Z", "+00:00"))
+            dt_it = dt_utc.astimezone(ROME_TZ)
 
-        q1_list, qx_list, q2_list = [], [], []
-        qo25_list, qu25_list = [], []
+            if dt_it.date() != oggi_italia:
+                continue
 
-        for bk in match.get("bookmakers", []):
-            for mkt in bk.get("markets", []):
-                key = mkt["key"]
-                outcomes = mkt["outcomes"]
-                if key == "h2h":
-                    for o in outcomes:
-                        if o["name"] == home: q1_list.append(o["price"])
-                        elif o["name"] == away: q2_list.append(o["price"])
-                        elif o["name"] == "Draw": qx_list.append(o["price"])
-                elif key == "totals":
-                    for o in outcomes:
-                        if o.get("point") == 2.5:
-                            if o["name"] == "Over": qo25_list.append(o["price"])
-                            elif o["name"] == "Under": qu25_list.append(o["price"])
+            home = match["home_team"]
+            away = match["away_team"]
+            lega = match.get("sport_title", "Calcio")
 
-        if not (q1_list and qx_list and q2_list and qo25_list and qu25_list):
-            continue
+            q1_list, qx_list, q2_list = [], [], []
+            qo25_list, qu25_list = [], []
 
-        q1 = round(float(np.mean(q1_list)), 2)
-        qx = round(float(np.mean(qx_list)), 2)
-        q2 = round(float(np.mean(q2_list)), 2)
-        qo25 = round(float(np.mean(qo25_list)), 2)
-        qu25 = round(float(np.mean(qu25_list)), 2)
+            for bk in match.get("bookmakers", []):
+                for mkt in bk.get("markets", []):
+                    key = mkt["key"]
+                    outcomes = mkt["outcomes"]
+                    if key == "h2h":
+                        for o in outcomes:
+                            if o["name"] == home: q1_list.append(o["price"])
+                            elif o["name"] == away: q2_list.append(o["price"])
+                            elif o["name"] == "Draw": qx_list.append(o["price"])
+                    elif key == "totals":
+                        for o in outcomes:
+                            if o.get("point") == 2.5:
+                                if o["name"] == "Over": qo25_list.append(o["price"])
+                                elif o["name"] == "Under": qu25_list.append(o["price"])
 
-        la, lb = stima_lambda_da_quote(q1, qx, q2, qo25, qu25)
+            if not (q1_list and qx_list and q2_list and qo25_list and qu25_list):
+                continue
 
-        qgg = round(qo25 * 0.96, 2)
-        qob = round(qo25 * 1.18, 2)
-        p1x = (1 / q1) + (1 / qx)
-        q1x = round(max(1.15, (1 / p1x) * 1.25), 2)
+            q1 = round(float(np.mean(q1_list)), 2)
+            qx = round(float(np.mean(qx_list)), 2)
+            q2 = round(float(np.mean(q2_list)), 2)
+            qo25 = round(float(np.mean(qo25_list)), 2)
+            qu25 = round(float(np.mean(qu25_list)), 2)
 
-        palinsesto_pulito.append({
-            "ora": dt_it.strftime("%H:%M"),
-            "lega": lega,
-            "m": f"{home} - {away}",
-            "la": la,
-            "lb": lb,
-            "qo25": qo25,
-            "qgg": qgg,
-            "qob": qob,
-            "qu25": qu25,
-            "q1x": q1x
-        })
+            la, lb = stima_lambda_da_quote(q1, qx, q2, qo25, qu25)
+
+            qgg = round(qo25 * 0.96, 2)
+            qob = round(qo25 * 1.18, 2)
+            p1x = (1 / q1) + (1 / qx)
+            q1x = round(max(1.15, (1 / p1x) * 1.25), 2)
+
+            palinsesto_pulito.append({
+                "ora": dt_it.strftime("%H:%M"),
+                "lega": lega,
+                "m": f"{home} - {away}",
+                "la": la,
+                "lb": lb,
+                "qo25": qo25,
+                "qgg": qgg,
+                "qob": qob,
+                "qu25": qu25,
+                "q1x": q1x
+            })
 
     palinsesto_pulito.sort(key=lambda x: x["ora"])
 
@@ -127,8 +138,7 @@ def fetch_palinsesto():
     with open("data/palinsesto.json", "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=4)
 
-    print(f"Salvati {len(palinsesto_pulito)} match per oggi.")
+    print(f"Salvati {len(palinsesto_pulito)} match mondiali per oggi.")
 
 if __name__ == "__main__":
     fetch_palinsesto()
-        
