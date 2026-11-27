@@ -41,12 +41,12 @@ def fetch_palinsesto():
     params = {
         "apiKey": API_KEY,
         "regions": "eu",
-        "markets": "h2h,totals,btts",
+        "markets": "h2h,totals",
         "oddsFormat": "decimal"
     }
 
     resp = requests.get(url, params=params)
-    if resp.status_code != 200:
+    if resp.status_code != 200 or not resp.text.strip():
         raise Exception(f"Errore API ({resp.status_code}): {resp.text}")
 
     raw_matches = resp.json()
@@ -68,7 +68,7 @@ def fetch_palinsesto():
         lega = match.get("sport_title", "Calcio")
 
         q1_list, qx_list, q2_list = [], [], []
-        qo25_list, qu25_list, qgg_list = [], [], []
+        qo25_list, qu25_list = [], []
 
         for bk in match.get("bookmakers", []):
             for mkt in bk.get("markets", []):
@@ -84,9 +84,6 @@ def fetch_palinsesto():
                         if o.get("point") == 2.5:
                             if o["name"] == "Over": qo25_list.append(o["price"])
                             elif o["name"] == "Under": qu25_list.append(o["price"])
-                elif key == "btts":
-                    for o in outcomes:
-                        if o["name"] == "Yes": qgg_list.append(o["price"])
 
         if not (q1_list and qx_list and q2_list and qo25_list and qu25_list):
             continue
@@ -99,7 +96,7 @@ def fetch_palinsesto():
 
         la, lb = stima_lambda_da_quote(q1, qx, q2, qo25, qu25)
 
-        qgg = round(float(np.mean(qgg_list)), 2) if qgg_list else round(qo25 * 0.96, 2)
+        qgg = round(qo25 * 0.96, 2)
         qob = round(qo25 * 1.18, 2)
         p1x = (1 / q1) + (1 / qx)
         q1x = round(max(1.15, (1 / p1x) * 1.25), 2)
@@ -133,4 +130,4 @@ def fetch_palinsesto():
 
 if __name__ == "__main__":
     fetch_palinsesto()
-                
+        
