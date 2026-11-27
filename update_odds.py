@@ -29,8 +29,8 @@ def stima_lambda_da_quote(q1, qx, q2, qo25, qu25):
         return (m_p1 - p1)**2 + (m_px - px)**2 + (m_po - po)**2
 
     res = minimize(loss, [1.4, 1.2], method="Nelder-Mead")
-    la = max(0.3, round(float(res.x[0]), 2))
-    lb = max(0.3, round(float(res.x[1]), 2))
+    la = max(0.3, round(float(res.x), 2))
+    lb = max(0.3, round(float(res.x), 2))
     return la, lb
 
 def fetch_palinsesto():
@@ -39,15 +39,16 @@ def fetch_palinsesto():
 
     url = "https://the-odds-api.com"
     params = {
-        "apiKey": API_KEY,
+        "apiKey": API_KEY.strip(),
         "regions": "eu",
         "markets": "h2h,totals",
         "oddsFormat": "decimal"
     }
 
     resp = requests.get(url, params=params)
+    print("Status Code API:", resp.status_code)
     if resp.status_code != 200 or not resp.text.strip():
-        raise Exception(f"Errore API ({resp.status_code}): {resp.text}")
+        raise Exception(f"Risposta API ({resp.status_code}): {resp.text[:300]}")
 
     raw_matches = resp.json()
     oggi_italia = datetime.now(ROME_TZ).date()
