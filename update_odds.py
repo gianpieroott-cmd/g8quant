@@ -9,7 +9,7 @@ from scipy.optimize import minimize
 from scipy.stats import poisson
 
 RAW_KEY = os.environ.get("ODDS_API_KEY", "")
-API_KEY = re.sub(r'[^a-zA-Z0-9]', '', RAW_KEY)
+API_KEY = re.sub(r'[^a-zA-Z0-9]', '', RAW_KEY)[-32:]
 ROME_TZ = ZoneInfo("Europe/Rome")
 
 def stima_lambda_da_quote(q1, qx, q2, qo25, qu25):
@@ -37,18 +37,16 @@ def stima_lambda_da_quote(q1, qx, q2, qo25, qu25):
     return la, lb
 
 def fetch_palinsesto():
-    if not API_KEY:
-        raise ValueError("ERRORE: Il segreto ODDS_API_KEY su GitHub è vuoto!")
-
-    print(f"Chiave API pulita (lunghezza: {len(API_KEY)} caratteri)")
+    if len(API_KEY) != 32:
+        raise ValueError(f"Chiave non valida: trovati {len(API_KEY)} caratteri invece di 32.")
 
     sports_url = f"https://the-odds-api.com{API_KEY}"
     s_resp = requests.get(sports_url, timeout=15)
     
-    if s_resp.status_code != 200 or not s_resp.text.strip().startswith("["):
-        raise Exception(f"Risposta inattesa ({s_resp.status_code}): {repr(s_resp.text[:200])}")
+    if s_resp.status_code != 200:
+        raise Exception(f"Errore API ({s_resp.status_code}): {s_resp.text[:200]}")
 
-    sports = json.loads(s_resp.text)
+    sports = s_resp.json()
     soccer_keys = [s["key"] for s in sports if s.get("group") == "Soccer" and s.get("active")]
     print(f"Trovati {len(soccer_keys)} campionati di calcio attivi.")
 
@@ -61,7 +59,7 @@ def fetch_palinsesto():
         if resp.status_code != 200 or not resp.text.strip().startswith("["):
             continue
 
-        raw_matches = json.loads(resp.text)
+        raw_matches = resp.json()
 
         for match in raw_matches:
             dt_utc = datetime.fromisoformat(match["commence_time"].replace("Z", "+00:00"))
@@ -137,4 +135,4 @@ def fetch_palinsesto():
 
 if __name__ == "__main__":
     fetch_palinsesto()
-        
+    
